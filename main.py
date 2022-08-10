@@ -83,6 +83,8 @@ def api_shorten():
         return Response('Invalid string: not valid url.', 400)
     
     number = rng.randint(1, base**30)
+    while number in url_addresses:
+        number = rng.randint(1, base**30)
     _, shortened = convert_to_BASE64(number)
     #print(f'Created number {number} for code {shortened}')
     url_addresses[number] = url
