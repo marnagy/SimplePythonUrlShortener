@@ -1,11 +1,11 @@
-import threading
+from threading import Thread
 from flask import Flask, request, render_template, redirect, Response, jsonify, url_for
 from os import environ
 import string
 import asyncio
 from time import sleep
 from random import Random
-import validators
+from validators import url as url_validate
 
 
 BASE_64 = string.ascii_letters + string.digits + '-' + '%'
@@ -79,14 +79,14 @@ async def async_test():
 @app.get('/api/shorten')
 def api_shorten():
     url = request.args.get('url')
-    if not validators.url(url):
+    if not url_validate(url):
         return Response('Invalid string: not valid url.', 400)
     
     number = rng.randint(1, base**30)
     _, shortened = convert_to_BASE64(number)
     #print(f'Created number {number} for code {shortened}')
     url_addresses[number] = url
-    thread = threading.Thread(target=lambda: delete_after(number, 1))
+    thread = Thread(target=lambda: delete_after(number, 1))
     thread.start()
     returned_url = f'{request.host_url}{shortened}'
     return {
