@@ -8,12 +8,22 @@ from db import (UrlRecordModel, decode, get_code_for,
                 Session, close_connection, AsyncSession)
 from typing import Callable, Optional
 
+
+QUEUED_FOR_DELETION: list[tuple[UrlRecordModel, Thread]] = list()
+
+def delete_from_db(url_model: UrlRecordModel, session: AsyncSession):
+    asyncio.run(session.delete(url_model))
+    asyncio.run(session.commit())
+
 def get_async_delete(url_model: UrlRecordModel, session: AsyncSession, hours: int) -> Callable[[], None]:
+    global QUEUED_FOR_DELETION
+
     def res_func():
+        global QUEUED_FOR_DELETION
         sleep(hours * 60 * 60)
-        session.delete(url_model)
-        asyncio.run(session.commit())
+        delete_from_db(url_model, session)
         UrlRecordModel.USED_NUMBERS.remove(url_model.id)
+        QUEUED_FOR_DELETION = list(filter(lambda model_thread_pair: model_thread_pair[0] != url_model, QUEUED_FOR_DELETION))
         print(f'Model {url_model.id} was deleted.')
 
     return res_func
@@ -56,6 +66,7 @@ async def api_shorten():
     #print(f'Created number {number} for code {shortened}')
     thread = Thread(target=get_async_delete(url_model, Session, 10))
     thread.start()
+    QUEUED_FOR_DELETION.append((url_model, thread))
     returned_url = f'{request.host_url}{code}'
     return {
         'url': returned_url
@@ -83,9 +94,12 @@ async def redirect_to_url(code:str):
         return Response(f'Invalid code provided.', 400)
 
 async def async_main():
+    global QUEUED_FOR_DELETION
     try:
         app.run(host='0.0.0.0', port=PORT, debug=DEBUG, threaded=True)
     finally:
+        results = await asyncio.gather([ Session.delete for model, thread in QUEUED_FOR_DELETION if thread.is_alive() ])
+        await Session.commit()
         await close_connection()
 
 if __name__ == '__main__':
