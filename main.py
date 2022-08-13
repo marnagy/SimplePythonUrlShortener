@@ -98,7 +98,7 @@ async def async_main():
     try:
         app.run(host='0.0.0.0', port=PORT, debug=DEBUG, threaded=True)
     finally:
-        results = await asyncio.gather([ Session.delete for model, thread in QUEUED_FOR_DELETION if thread.is_alive() ])
+        _ = await asyncio.gather([ Session.delete for model, thread in QUEUED_FOR_DELETION if thread.is_alive() ])
         await Session.commit()
         await close_connection()
 
